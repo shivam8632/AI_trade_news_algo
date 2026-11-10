@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bot Trade Dashboard</title>
+    <style>
+        :root {
+            --bg: #0b1020;
+            --panel: #121a2a;
+            --panel-alt: #1a2540;
+            --text: #e5eefb;
+            --muted: #9cb0d1;
+            --green: #1ec88a;
+            --red: #ff6b6b;
+            --yellow: #f7c948;
+            --blue: #5aa9ff;
+            --border: #24314d;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: Arial, sans-serif;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 28px auto;
+            padding: 0 18px;
+        }
+
+        h1 {
+            margin-bottom: 12px;
+        }
+
+        .subtitle {
+            color: var(--muted);
+            margin-bottom: 24px;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+            gap: 16px;
+            margin-bottom: 28px;
+        }
+
+        .card {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 18px;
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.15);
+        }
+
+        .chart-card {
+            margin-bottom: 28px;
+        }
+
+        canvas {
+            width: 100%;
+            height: 210px;
+            display: block;
+            background: linear-gradient(180deg, rgba(90, 169, 255, 0.06), rgba(18, 26, 42, 0.08));
+            border-radius: 12px;
+            border: 1px solid var(--border);
+        }
+
+        .label {
+            font-size: 12px;
+            color: var(--muted);
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .value {
+            margin-top: 10px;
+            font-size: 27px;
+            font-weight: 700;
+        }
+
+        .positive {
+            color: var(--green);
+        }
+
+        .negative {
+            color: var(--red);
+        }
+
+        .neutral {
+            color: var(--yellow);
+        }
+
+        .table-wrap {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 1200px;
+        }
+
+        thead th {
+            background: var(--panel-alt);
+            color: var(--muted);
+            text-align: left;
+            font-size: 12px;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        tbody td {
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border);
+            vertical-align: top;
+        }
+
+        tbody tr:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .pill {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .buy {
+            background: rgba(30, 200, 138, 0.12);
+            color: var(--green);
+        }
+
+        .sell {
+            background: rgba(255, 107, 107, 0.12);
+            color: var(--red);
+        }
+
+        .status-open {
+            color: var(--yellow);
+        }
+
+        .status-closed {
+            color: var(--green);
+        }
+
+        .live-row {
+            background: rgba(247, 201, 72, 0.08);
+            box-shadow: inset 4px 0 0 var(--yellow);
+        }
+
+        .empty {
+            padding: 30px;
+            color: var(--muted);
+            font-size: 18px;
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Bot Trade Dashboard</h1>
+        <div class="subtitle">Live trading log, realized P&L, fees, and wallet summary</div>
+
+        <div class="summary-grid">
+            <div class="card">
+                <div class="label">Closed Trades</div>
+                <div class="value neutral" id="tradeCount">0</div>
+            </div>
+            <div class="card">
+                <div class="label">Open Trades</div>
+                <div class="value neutral" id="openTradeCount">0</div>
+            </div>
+            <div class="card">
+                <div class="label">Day P&L</div>
+                <div class="value" id="netPnl">₹0.00</div>
+            </div>
+            <div class="card">
+                <div class="label">Fees + Tax</div>
+                <div class="value neutral" id="feesTax">₹0.00</div>
+            </div>
+            <div class="card">
+                <div class="label">Wallet Balance</div>
+                <div class="value" id="walletBalance">₹0.00</div>
+            </div>
+        </div>
+
+        <div class="card chart-card">
+            <div class="label">Daily Profit / Loss Trend</div>
+            <canvas id="pnlChart" width="1200" height="220"></canvas>
+        </div>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Symbol</th>
+                        <th>Side</th>
+                        <th>Qty</th>
+                        <th>Entry Time</th>
+                        <th>Exit Time</th>
+                        <th>Entry Price</th>
+                        <th>Exit Price</th>
+                        <th>Fees + Tax</th>
+                        <th>P&L Before Fees</th>
+                        <th>Net P&L</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="tradeTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        function formatCurrency(value) {
+            const numeric = Number(value || 0);
+            return '₹' + numeric.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        function drawPnlChart(trades) {
+            const canvas = document.getElementById('pnlChart');
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+            ctx.clearRect(0, 0, width, height);
+
+            const closedTrades = trades.filter(item => item.status === 'closed');
+            if (closedTrades.length === 0) {
+                ctx.fillStyle = '#9cb0d1';
+                ctx.font = '16px Arial';
+                ctx.fillText('No closed trades yet. Profit/loss chart will appear here.', 18, height / 2);
+                return;
+            }
+
+            const values = [];
+            let running = 0;
+            closedTrades.forEach(item => {
+                running += Number(item.net_pnl || 0);
+                values.push(running);
+            });
+
+            const minVal = Math.min(...values, 0);
+            const maxVal = Math.max(...values, 0);
+            const padding = 30;
+            const chartWidth = width - padding * 2;
+            const chartHeight = height - padding * 2;
+
+            ctx.strokeStyle = '#24314d';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(padding, padding);
+            ctx.lineTo(padding, height - padding);
+            ctx.lineTo(width - padding, height - padding);
+            ctx.stroke();
+
+            const range = maxVal - minVal || 1;
+
+            ctx.beginPath();
+            ctx.strokeStyle = '#1ec88a';
+            ctx.lineWidth = 2;
+            values.forEach((val, index) => {
+                const x = padding + (index / Math.max(values.length - 1, 1)) * chartWidth;
+                const normalized = (val - minVal) / range;
+                const y = height - padding - normalized * chartHeight;
+                if (index === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            });
+            ctx.stroke();
+
+            ctx.fillStyle = '#9cb0d1';
+            ctx.font = '12px Arial';
+            ctx.fillText('₹' + formatCurrency(minVal).replace('₹', ''), 14, height - 10);
+            ctx.fillText('₹' + formatCurrency(maxVal).replace('₹', ''), width - 90, 18);
+        }
+
+        async function loadTrades() {
+            try {
+                const res = await fetch('trade_log.json', { cache: 'no-store' });
+                const trades = await res.json();
+                renderSummary(trades);
+                renderTable(trades);
+                drawPnlChart(trades);
+            } catch (err) {
+                document.getElementById('tradeTableBody').innerHTML = '<tr><td colspan="11" class="empty">No trade log available yet. The bot will populate this page when it logs trades.</td></tr>';
+            }
+        }
+
+        function renderSummary(trades) {
+            const closedTrades = trades.filter(item => item.status === 'closed');
+            const openTrades = trades.filter(item => item.status === 'open');
+            const totalPnl = closedTrades.reduce((sum, item) => sum + Number(item.net_pnl || 0), 0);
+            const fees = closedTrades.reduce((sum, item) => sum + Number(item.fees_and_tax || 0), 0);
+            const walletBalance = 60000 + totalPnl;
+
+            document.getElementById('tradeCount').textContent = String(closedTrades.length);
+            document.getElementById('openTradeCount').textContent = String(openTrades.length);
+            document.getElementById('netPnl').textContent = formatCurrency(totalPnl);
+            document.getElementById('netPnl').className = 'value ' + (totalPnl >= 0 ? 'positive' : 'negative');
+            document.getElementById('feesTax').textContent = formatCurrency(fees);
+            document.getElementById('walletBalance').textContent = formatCurrency(walletBalance);
+            document.getElementById('walletBalance').className = 'value ' + (walletBalance >= 60000 ? 'positive' : 'negative');
+        }
+
+        function renderTable(trades) {
+            const tbody = document.getElementById('tradeTableBody');
+            if (!Array.isArray(trades) || trades.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="11" class="empty">No trades logged yet.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = trades.map(item => {
+                const net = Number(item.net_pnl || 0);
+                const rowClass = net >= 0 ? 'positive' : 'negative';
+                const sideClass = item.side === 'BUY' ? 'buy' : 'sell';
+                const statusClass = item.status === 'closed' ? 'status-closed' : 'status-open';
+                const rowHighlight = item.status === 'open' ? 'live-row' : '';
+
+                return `
+          <tr class="${rowHighlight}">
+            <td>${item.symbol || '-'}</td>
+            <td><span class="pill ${sideClass}">${item.side || '-'}</span></td>
+            <td>${item.quantity ?? '-'}</td>
+            <td>${item.entry_time || '-'}</td>
+            <td>${item.exit_time || '-'}</td>
+            <td>${item.entry_price ? formatCurrency(item.entry_price) : '-'}</td>
+            <td>${item.exit_price ? formatCurrency(item.exit_price) : '-'}</td>
+            <td>${item.fees_and_tax ? formatCurrency(item.fees_and_tax) : '₹0.00'}</td>
+            <td class="${rowClass}">${item.pnl_before_fees ? formatCurrency(item.pnl_before_fees) : '₹0.00'}</td>
+            <td class="${rowClass}">${formatCurrency(item.net_pnl || 0)}</td>
+            <td class="${statusClass}">${item.status || 'open'}</td>
+          </tr>
+        `;
+            }).join('');
+        }
+
+        loadTrades();
+        setInterval(loadTrades, 10000);
+    </script>
+</body>
+
+</html>
